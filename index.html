@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QF Values</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: header strip, a row of five unit gauges, then trend and log below. Control-room calm. */
+  :root {
+    --bg: #f5f6f4; --panel: #ffffff; --fg: #1b2420; --muted: #5d6963; --line: #dde2de; --grid: #e9ece9; --axis: #b9c1bc;
+    --accent: #1f6f5c; --led: #b07a1e; --ok: #2f7d4f; --warn: #a86a00; --bad: #c2362b; --band: rgba(47,125,79,.09);
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --r: 8px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111715; --panel: #18201d; --fg: #e5ebe7; --muted: #94a19a; --line: #2a3430; --grid: #222b28; --axis: #3c4843;
+      --accent: #5cc3a6; --led: #e0aa52; --ok: #5fbf85; --warn: #e0a440; --bad: #f06b5e; --band: rgba(95,191,133,.10);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 32px; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  h1 { margin: 0; font-size: 1.9rem; font-weight: 600; letter-spacing: -.01em; text-wrap: balance; }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+  .lede b { color: var(--fg); font-weight: 500; }
+  .live { display: inline-flex; align-items: center; gap: 8px; font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
+  .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .live.err::before { background: var(--bad); }
+  .live.busy::before { background: var(--warn); }
+  .banner { border: 1px solid var(--bad); color: var(--bad); border-radius: var(--r); padding: 10px 14px; font-size: 14px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .card { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+  .card:hover { border-color: var(--axis); }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .unit { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  .row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .big { font: 500 2.3rem/1.05 var(--mono); font-variant-numeric: tabular-nums; }
+  .big.out { color: var(--bad); }
+  .tag, .chg, .lim, .meta, .clean { font-size: 12px; color: var(--muted); }
+  .chg, .lim, .meta { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .led { font: 14px var(--mono); }
+  .led span { font: 12px var(--sans); color: var(--muted); margin-right: 4px; }
+  .spark { height: 34px; display: block; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { display: inline-block; padding: 1px 7px; border-radius: 999px; font: 11px var(--sans); letter-spacing: .05em; text-transform: uppercase; border: 1px solid var(--line); color: var(--muted); }
+  .chip.night { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .chip.ok { border-color: var(--ok); color: var(--ok); }
+  .chip.bad { border-color: var(--bad); color: var(--bad); }
+  .chip.late { border-color: var(--warn); color: var(--warn); }
+  section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  h2 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+  .sec-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--panel); }
+  .seg button { all: unset; cursor: pointer; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 16px; vertical-align: middle; margin-right: 6px; }
+  .sw-qf { height: 2px; background: var(--accent); } .sw-led { height: 2px; background: var(--led); }
+  .sw-lim { border-top: 2px dashed var(--bad); } .sw-band { height: 10px; background: var(--band); border: 1px solid var(--line); }
+  .sw-clean { width: 0 !important; height: 12px; border-left: 1px dashed var(--muted); }
+  .chart { position: relative; min-height: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 8px 4px; }
+  .chart svg { display: block; width: 100%; }
+  .chart svg text { fill: var(--muted); font: 11px var(--mono); }
+  .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.14); border-radius: 6px; padding: 6px 9px; font: 12px var(--mono); white-space: nowrap; color: var(--fg); }
+  .tip small { display: block; color: var(--muted); font-family: var(--sans); }
+  .tip .bad { color: var(--bad); }
+  .note { margin: 0; font-size: 12px; color: var(--muted); }
+  .empty { padding: 40px 12px; text-align: center; color: var(--muted); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 12px; font-weight: 500; color: var(--muted); }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  td.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  td.out { color: var(--bad); }
+  tbody tr:last-child td { border-bottom: 0; }
+  @media (prefers-reduced-motion: no-preference) { .card, .seg button { transition: border-color .15s, background-color .15s; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div>
+      <h1>QF Values</h1>
+      <p class="lede" id="lede">Loading the latest readings…</p>
+    </div>
+    <span class="live busy" id="live">Loading…</span>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="cards" id="cards" aria-label="Latest reading per unit"></div>
+
+  <section id="trend">
+    <div class="sec-head">
+      <h2>Trend: <span id="trend-unit">SLE</span></h2>
+      <div class="seg" role="group" aria-label="Time window" id="seg">
+        <button type="button" data-days="7" aria-pressed="false">7 days</button>
+        <button type="button" data-days="30" aria-pressed="true">30 days</button>
+        <button type="button" data-days="0" aria-pressed="false">All</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw-qf"></i>QF value</span><span><i class="sw-led"></i>LED</span>
+      <span><i class="sw-lim"></i>QF upper / lower limit</span><span><i class="sw-band"></i>Within limits</span>
+      <span><i class="sw-clean"></i>Cleaned</span>
+    </div>
+    <div class="chart" id="chart"></div>
+    <p class="note">Tap a unit above to switch the chart. Points join readings in the order they were taken.</p>
+  </section>
+
+  <section id="recent">
+    <h2>Recent entries</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Unit</th><th>Date</th><th>Time</th><th>Shift</th><th class="num">QF</th><th class="num">LED</th><th>Note</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="note">Latest 30 entries across all five units, newest first. QF values outside their limits are shown in red.</p>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+/* ===================== SETTINGS ===================== */
+const CONFIG = {
+  // Paste the "Publish to web" CSV link for the QF/LED Values tab here.
+  csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR61y4QfunA6dUadgC_gjh2PdfpsutJPYROi6cKO3VzFRIHdwLUMaJlsCa8gtba5ZPlEav5nc9XXWQr/pub?gid=0&single=true&output=csv',
+  refreshMinutes: 5,
+  lateHours: 14            // flag a unit with no entry for longer than about one shift
+};
+// Units in sheet order (each table is 6 columns wide: QF, LED, Date, Time, Shift, spacer).
+// lo / hi are the QF limits in %. Leave limits out for a unit that has none.
+const UNITS = [
+  { name: 'SLE',                  lo: 97,  hi: 102 },
+  { name: 'Low Green Export',     lo: 93,  hi: 105 },
+  { name: 'Cooling Crystalliser', lo: 102, hi: 106 },
+  { name: 'TJ Export',            lo: 106, hi: 114 },
+  { name: 'Main Dissolver' }
+];
+const FIRST_DATA_ROW = 3;  // rows 1–2 are blank / headers
+/* ==================================================== */
+
+const state = { readings: [], unit: UNITS[0].name, days: 30, updated: null, error: null, loading: true };
+const fmt = d3.format('.1~f');
+const fmtDay = d3.utcFormat('%-d %b');
+const fmtFull = d3.utcFormat('%-d %b %H:%M');
+const limitOf = (unit) => { const u = UNITS.find((x) => x.name === unit); return u && u.lo != null && u.hi != null ? u : null; };
+const outOf = (unit, v) => { const L = limitOf(unit); if (!L || v == null) return null; return v < L.lo ? 'low' : v > L.hi ? 'high' : null; };
+// Sheet times are plant-local wall-clock times; keep them as naive UTC so nothing shifts.
+const nowNaive = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate(), n.getHours(), n.getMinutes()); };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+function parseCSV(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (c !== '\r') cell += c;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+function toReadings(rows) {
+  const num = (s) => { if (s === '') return null; const n = Number(s.replace('%', '')); return Number.isFinite(n) ? n : null; };
+  const out = [];
+  rows.slice(FIRST_DATA_ROW - 1).forEach((r, i) => {
+    UNITS.forEach((u, k) => {
+      const [q, l, d, t, s] = [0, 1, 2, 3, 4].map((j) => String(r[k * 6 + j] ?? '').trim());
+      const cleaned = /clean/i.test(l);
+      const qf = num(q);
+      if (qf == null && !cleaned) return;
+      const dm = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!dm) return;
+      const tm = t.match(/^(\d{1,2}):(\d{2})/);
+      const ts = Date.UTC(+dm[3], +dm[2] - 1, +dm[1], tm ? +tm[1] : 0, tm ? +tm[2] : 0);
+      out.push({ unit: u.name, date: d, time: t, shift: s, qf: cleaned ? null : qf, led: cleaned ? null : num(l), cleaned, ts, row: FIRST_DATA_ROW + i });
+    });
+  });
+  return out.sort((a, b) => a.ts - b.ts);
+}
+
+function latest(unit) {
+  const mine = state.readings.filter((r) => r.unit === unit);
+  const vals = mine.filter((r) => r.qf != null);
+  const cleans = mine.filter((r) => r.cleaned);
+  const last = vals[vals.length - 1], prev = vals[vals.length - 2];
+  return { last, change: last && prev ? Math.round((last.qf - prev.qf) * 10) / 10 : null, cleaned: cleans[cleans.length - 1] };
+}
+
+async function load() {
+  const live = document.getElementById('live');
+  live.className = 'live busy'; live.textContent = 'Checking for new entries…';
+  try {
+    if (!/^https:\/\//.test(CONFIG.csvUrl)) throw new Error('No sheet link set. Paste the published CSV link into CONFIG.csvUrl in index.html.');
+    const sep = CONFIG.csvUrl.includes('?') ? '&' : '?';
+    if (location.protocol === 'file:') throw new Error('Google only sends the sheet data to a page hosted on a website. Opened straight from your computer it is blocked. Push to GitHub Pages and open the site address instead.');
+    const res = await fetch(CONFIG.csvUrl + sep + '_=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('The sheet returned an error (' + res.status + '). Check that the QF/LED Values tab is still published to the web.');
+    const text = await res.text();
+    if (/^\s*</.test(text)) throw new Error('The link returned a web page, not CSV. Re-copy the link with "Comma-separated values (.csv)" selected.');
+    state.readings = toReadings(parseCSV(text));
+    state.updated = new Date(); state.error = null;
+  } catch (e) {
+    state.error = e.message || String(e);
+  }
+  state.loading = false;
+  render();
+}
+
+function render() {
+  const live = document.getElementById('live');
+  const banner = document.getElementById('banner');
+  if (state.error) {
+    live.className = 'live err';
+    live.textContent = state.updated ? 'Last updated ' + d3.timeFormat('%H:%M')(state.updated) + ' · retrying' : 'Could not load';
+    banner.hidden = false; banner.textContent = state.error;
+  } else {
+    live.className = 'live';
+    live.textContent = 'Live · refreshes every ' + CONFIG.refreshMinutes + ' min · updated ' + d3.timeFormat('%H:%M')(state.updated);
+    banner.hidden = true;
+  }
+  renderLede(); renderCards(); renderTrend(); renderTable();
+}
+
+function renderLede() {
+  const p = document.getElementById('lede');
+  if (!state.readings.length) { p.textContent = state.error ? 'No readings to show yet.' : 'Loading the latest readings…'; return; }
+  const top = state.readings.filter((r) => r.qf != null).at(-1);
+  const withLim = UNITS.filter((u) => limitOf(u.name));
+  const outN = withLim.filter((u) => { const L = latest(u.name).last; return L && outOf(u.name, L.qf); }).length;
+  p.replaceChildren('Most recent entry: ', el('b', null, top.unit), ' at ', el('b', null, fmtFull(new Date(top.ts)) + (top.shift ? ' (' + top.shift.toLowerCase() + ')' : '')),
+    '. ', el('b', null, String(outN)), ' of ' + withLim.length + ' units with QF limits ' + (outN === 1 ? 'is' : 'are') + ' outside them on the latest reading.');
+}
+
+function renderCards() {
+  const box = document.getElementById('cards');
+  if (!box.children.length) {
+    UNITS.forEach((u) => {
+      const b = el('button', 'card'); b.type = 'button'; b.dataset.unit = u.name;
+      b.addEventListener('click', () => { state.unit = u.name; renderCards(); renderTrend(); });
+      box.append(b);
+    });
+  }
+  [...box.children].forEach((b) => {
+    const unit = b.dataset.unit, L = limitOf(unit), { last, change, cleaned } = latest(unit);
+    b.setAttribute('aria-pressed', String(unit === state.unit));
+    const big = el('span', 'big', last ? fmt(last.qf) : '—'); if (last && outOf(unit, last.qf)) big.classList.add('out');
+    const chg = el('span', 'chg', change == null ? '' : (change > 0 ? '+' : change < 0 ? '−' : '±') + fmt(Math.abs(change)) + ' vs prev');
+    const row = el('span', 'row'); row.append(big, el('span', 'tag', 'QF %'), chg);
+    const led = el('span', 'led'); led.append(el('span', null, 'LED'), el('b', null, last && last.led != null ? fmt(last.led) : '—'));
+    const spark = el('span', 'spark');
+    const lim = el('span', 'lim', L ? 'Limits ' + fmt(L.lo) + '–' + fmt(L.hi) + '%' : 'No limits set');
+    const meta = el('span', 'meta');
+    if (last) {
+      meta.append(el('span', null, fmtFull(new Date(last.ts))));
+      if (last.shift) meta.append(el('span', 'chip' + (/night/i.test(last.shift) ? ' night' : ''), last.shift));
+      if (L) { const o = outOf(unit, last.qf); meta.append(el('span', 'chip ' + (o ? 'bad' : 'ok'), o === 'high' ? 'Above limit' : o === 'low' ? 'Below limit' : 'In range')); }
+      const hrs = (nowNaive() - last.ts) / 36e5;
+      if (hrs > CONFIG.lateHours) meta.append(el('span', 'chip late', 'No entry for ' + Math.round(hrs) + 'h'));
+    } else meta.textContent = '—';
+    const cl = el('span', 'clean', 'Last cleaned ' + (cleaned ? cleaned.date + ' ' + cleaned.time : 'not recorded'));
+    b.replaceChildren(el('span', 'unit', unit), row, led, spark, lim, meta, cl);
+    drawSpark(spark, unit);
+  });
+}
+
+function drawSpark(box, unit) {
+  const pts = state.readings.filter((r) => r.unit === unit && r.qf != null).slice(-12);
+  if (pts.length < 2) return;
+  const w = box.clientWidth || 170, h = 34, L = limitOf(unit);
+  const ext = d3.extent([...pts.map((d) => d.qf), ...(L ? [L.lo, L.hi] : [])]); const pad = (ext[1] - ext[0]) * 0.15 || 1;
+  const x = d3.scaleLinear().domain([0, pts.length - 1]).range([3, w - 4]);
+  const y = d3.scaleLinear().domain([ext[0] - pad, ext[1] + pad]).range([h - 3, 3]);
+  const svg = d3.select(box).append('svg').attr('width', '100%').attr('height', h).attr('viewBox', `0 0 ${w} ${h}`).attr('role', 'img').attr('aria-label', 'Last ' + pts.length + ' QF readings for ' + unit);
+  if (L) svg.selectAll('line').data([L.lo, L.hi]).join('line').attr('x1', 0).attr('x2', w).attr('y1', y).attr('y2', y).style('stroke', 'var(--bad)').attr('stroke-dasharray', '3 2').attr('opacity', .6);
+  svg.append('path').datum(pts).attr('fill', 'none').attr('stroke-width', 1.5).style('stroke', 'var(--accent)').attr('d', d3.line().x((d, i) => x(i)).y((d) => y(d.qf)));
+  const e = pts[pts.length - 1];
+  svg.append('circle').attr('r', 3).attr('cx', x(pts.length - 1)).attr('cy', y(e.qf)).style('fill', outOf(unit, e.qf) ? 'var(--bad)' : 'var(--accent)');
+}
+
+function renderTrend() {
+  const box = document.getElementById('chart');
+  document.getElementById('trend-unit').textContent = state.unit;
+  box.replaceChildren();
+  const unit = state.unit, L = limitOf(unit);
+  let rows = state.readings.filter((r) => r.unit === unit);
+  if (state.days) { const end = d3.max(state.readings, (r) => r.ts) || nowNaive(); rows = rows.filter((r) => r.ts >= end - state.days * 864e5); }
+  const qfVals = rows.filter((d) => d.qf != null), ledVals = rows.filter((d) => d.led != null), cleans = rows.filter((d) => d.cleaned);
+  if (!qfVals.length) { box.append(el('div', 'empty', state.loading ? 'Loading…' : 'No readings for ' + unit + ' in this window.')); return; }
+
+  const W = box.clientWidth - 16 || 600, H = 320, topH = 190, gap = 28, botH = H - topH - gap - 24;
+  const svg = d3.select(box).append('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'QF value and LED over time for ' + unit);
+  const tip = d3.select(box).append('div').attr('class', 'tip').attr('hidden', '');
+  const pad = (e) => { const p = (e[1] - e[0]) * 0.12 || 1; return [e[0] - p, e[1] + p]; };
+  const yQ = d3.scaleLinear().domain(pad(d3.extent([...qfVals.map((d) => d.qf), ...(L ? [L.lo, L.hi] : [])]))).nice().range([topH, 8]);
+  const yL = d3.scaleLinear().domain(pad(d3.extent(ledVals.length ? ledVals : [{ led: 0 }], (d) => d.led))).nice().range([topH + gap + botH, topH + gap]);
+  const probe = svg.append('text').text(d3.max([...yQ.ticks(5), ...yL.ticks(3)].map(fmt), (s) => s));
+  const mL = Math.ceil(probe.node().getComputedTextLength() || 24) + 12, mR = 12; probe.remove();
+  const xd = d3.extent(rows, (d) => d.ts); if (xd[0] === xd[1]) { xd[0] -= 432e5; xd[1] += 432e5; }
+  const x = d3.scaleUtc().domain(xd).range([mL, W - mR]);
+  const yB = topH + gap + botH;
+
+  if (L) svg.append('rect').attr('x', mL).attr('width', W - mL - mR).attr('y', yQ(L.hi)).attr('height', yQ(L.lo) - yQ(L.hi)).style('fill', 'var(--band)');
+  svg.append('g').selectAll('line').data(yQ.ticks(5)).join('line').attr('x1', mL).attr('x2', W - mR).attr('y1', yQ).attr('y2', yQ).style('stroke', 'var(--grid)');
+  svg.append('g').selectAll('line').data(yL.ticks(3)).join('line').attr('x1', mL).attr('x2', W - mR).attr('y1', yL).attr('y2', yL).style('stroke', 'var(--grid)');
+  svg.append('g').attr('transform', `translate(${mL},0)`).call(d3.axisLeft(yQ).ticks(5).tickFormat(fmt).tickSize(0).tickPadding(8)).call((g) => g.select('.domain').remove());
+  svg.append('g').attr('transform', `translate(${mL},0)`).call(d3.axisLeft(yL).ticks(3).tickFormat(fmt).tickSize(0).tickPadding(8)).call((g) => g.select('.domain').remove());
+  svg.append('g').attr('transform', `translate(0,${yB})`).call(d3.axisBottom(x).ticks(Math.max(2, Math.min(8, Math.floor((W - mL) / 80)))).tickFormat(fmtDay).tickSizeOuter(0))
+    .call((g) => g.selectAll('line,path').style('stroke', 'var(--axis)'));
+  svg.selectAll('text.lab').data([['QF %', 8], ['LED', topH + gap]]).join('text').attr('class', 'lab').attr('x', mL + 4).attr('y', (d) => d[1] + 10).text((d) => d[0]);
+
+  if (L) {
+    const lr = [{ k: 'Upper', v: L.hi }, { k: 'Lower', v: L.lo }];
+    svg.append('g').selectAll('line').data(lr).join('line').attr('x1', mL).attr('x2', W - mR).attr('y1', (d) => yQ(d.v)).attr('y2', (d) => yQ(d.v))
+      .style('stroke', 'var(--bad)').attr('stroke-width', 1.5).attr('stroke-dasharray', '6 4');
+    svg.append('g').selectAll('text').data(lr).join('text').attr('text-anchor', 'end').attr('x', W - mR - 4).attr('y', (d) => yQ(d.v) + (d.k === 'Upper' ? -5 : 13)).text((d) => d.k + ' ' + fmt(d.v) + '%');
+  }
+  svg.append('g').selectAll('line').data(cleans).join('line').attr('x1', (d) => x(d.ts)).attr('x2', (d) => x(d.ts)).attr('y1', 4).attr('y2', yB).style('stroke', 'var(--muted)').attr('stroke-dasharray', '3 3');
+
+  svg.append('path').datum(qfVals).attr('fill', 'none').attr('stroke-width', 2).style('stroke', 'var(--accent)').attr('d', d3.line().x((d) => x(d.ts)).y((d) => yQ(d.qf)));
+  svg.append('path').datum(ledVals).attr('fill', 'none').attr('stroke-width', 1.5).style('stroke', 'var(--led)').attr('d', d3.line().x((d) => x(d.ts)).y((d) => yL(d.led)));
+  svg.append('g').selectAll('circle').data(qfVals).join('circle').attr('cx', (d) => x(d.ts)).attr('cy', (d) => yQ(d.qf)).attr('r', (d) => outOf(unit, d.qf) ? 4 : 3).style('fill', (d) => outOf(unit, d.qf) ? 'var(--bad)' : 'var(--accent)');
+  svg.append('g').selectAll('circle').data(ledVals).join('circle').attr('cx', (d) => x(d.ts)).attr('cy', (d) => yL(d.led)).attr('r', 2.5).style('fill', 'var(--led)');
+
+  const hover = svg.append('line').attr('y1', 4).attr('y2', yB).style('stroke', 'var(--axis)').attr('opacity', 0);
+  svg.append('rect').attr('x', mL).attr('y', 0).attr('width', W - mL - mR).attr('height', yB).style('fill', 'transparent')
+    .on('pointermove', (ev) => {
+      const t = x.invert(d3.pointer(ev)[0]).getTime();
+      const d = d3.least(rows, (r) => Math.abs(r.ts - t)); if (!d) return;
+      hover.attr('x1', x(d.ts)).attr('x2', x(d.ts)).attr('opacity', 1);
+      const n = tip.node(); n.replaceChildren(el('small', null, fmtFull(new Date(d.ts)) + (d.shift ? ' · ' + d.shift : '')));
+      n.append(el('div', null, d.cleaned ? 'Cleaned' : 'QF ' + fmt(d.qf) + '%  ·  LED ' + (d.led != null ? fmt(d.led) : '—')));
+      const o = d.cleaned ? null : outOf(unit, d.qf); if (o) n.append(el('div', 'bad', o === 'high' ? 'Above upper limit' : 'Below lower limit'));
+      tip.attr('hidden', null);
+      const px = x(d.ts) * (box.clientWidth - 16) / W + 8;
+      tip.style('left', Math.min(Math.max(0, px + 10), box.clientWidth - n.offsetWidth) + 'px').style('top', '12px');
+    })
+    .on('pointerleave', () => { hover.attr('opacity', 0); tip.attr('hidden', ''); });
+}
+
+function renderTable() {
+  const tb = document.getElementById('tbody');
+  const rows = state.readings.slice().reverse().slice(0, 30);
+  tb.replaceChildren();
+  if (!rows.length) { const tr = tb.insertRow(); const td = tr.insertCell(); td.colSpan = 7; td.className = 'empty'; td.textContent = state.loading ? 'Loading…' : 'No readings yet.'; return; }
+  rows.forEach((r) => {
+    const tr = tb.insertRow();
+    const add = (v, cls) => { const td = tr.insertCell(); if (v instanceof Node) td.append(v); else td.textContent = v; if (cls) td.className = cls; };
+    add(r.unit); add(r.date, 'mono'); add(r.time, 'mono');
+    add(r.shift ? el('span', 'chip' + (/night/i.test(r.shift) ? ' night' : ''), r.shift) : '');
+    add(r.qf != null ? fmt(r.qf) : '—', 'num' + (outOf(r.unit, r.qf) ? ' out' : ''));
+    add(r.led != null ? fmt(r.led) : '—', 'num');
+    add(r.cleaned ? 'Cleaned' : '');
+  });
+}
+
+document.querySelectorAll('#seg button').forEach((b) => b.addEventListener('click', () => {
+  state.days = +b.dataset.days;
+  document.querySelectorAll('#seg button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  renderTrend();
+}));
+let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { renderCards(); renderTrend(); }, 120); }).observe(document.querySelector('.wrap'));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') load(); });
+setInterval(() => { if (document.visibilityState === 'visible') load(); }, CONFIG.refreshMinutes * 60 * 1000);
+render();
+load();
+</script>
+</body>
+</html>
